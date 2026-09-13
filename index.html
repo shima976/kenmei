@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>都道府県 手書き学習マスター</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    }
+
+    body {
+      background-color: #f0f4f8;
+      color: #333;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    /* ユーザー入力画面 */
+    #user-init-screen {
+      background: #ffffff;
+      padding: 35px 30px;
+      border-radius: 15px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      text-align: center;
+      max-width: 420px;
+      width: 100%;
+      margin-top: 60px;
+    }
+
+    #user-init-screen h2 {
+      color: #1e293b;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    #user-init-screen input {
+      width: 85%;
+      padding: 12px;
+      font-size: 16px;
+      margin: 20px 0;
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      text-align: center;
+      outline: none;
+    }
+
+    #user-init-screen button {
+      padding: 12px 30px;
+      font-size: 16px;
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    #user-init-screen button:hover {
+      background-color: #1d4ed8;
+    }
+
+    /* メイン画面 */
+    #main-screen {
+      display: none;
+      width: 100%;
+      max-width: 1100px;
+      position: relative;
+    }
+
+    .header-status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffff;
+      padding: 15px 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .map-container {
+      flex: 1 1 540px;
+      background: #e0f2fe;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      text-align: center;
+    }
+
+    /* 地図のスタイル */
+    .map-wrapper {
+      position: relative;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    #japan-map-svg {
+      width: 100%;
+      height: auto;
+      max-height: 500px;
+    }
+
+    /* SVG内の都道府県パススタイル */
+    .pref-node {
+      fill: #e2e8f0;
+      stroke: #64748b;
+      stroke-width: 1;
+      cursor: pointer;
+      transition: fill 0.2s, stroke 0.2s;
+    }
+
+    .pref-node:hover {
+      fill: #cbd5e1;
+    }
+
+    .pref-node.selected {
+      fill: #f59e0b !important;
+      stroke: #b45309;
+      stroke-width: 2;
+    }
+
+    .pref-node.correct {
+      fill: #4ade80 !important;
+      stroke: #15803d;
+    }
+
+    .input-panel {
+      flex: 1 1 350px;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .target-title {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #1e293b;
+      text-align: center;
+      min-height: 28px;
+      font-weight: bold;
+    }
+
+    canvas {
+      border: 3px solid #334155;
+      border-radius: 10px;
+      background-color: #ffffff;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .canvas-controls {
+      margin-top: 15px;
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      font-size: 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: opacity 0.2s;
+    }
+
+    .btn-clear { background-color: #64748b; color: white; }
+    .btn-submit { background-color: #f97316; color: white; }
+    .btn:hover { opacity: 0.9; }
+
+    #result-message {
+      margin-top: 15px;
+      font-weight: bold;
+      font-size: 16px;
+      height: 28px;
+      text-align: center;
+    }
+
+    /* はなまる演出 */
+    .hanamaru-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      width: 280px;
+      height: 280px;
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .hanamaru-overlay.show {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0.95;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 名前入力画面 -->
+  <div id="user-init-screen">
+    <h2>都道府県 手書き学習</h2>
+    <p style="font-size:14px; color:#64748b;">名前を入力してスタート！</p>
+    <input type="text" id="username-input" placeholder="例: たろう" autofocus maxlength="10">
+    <br>
+    <button onclick="startGame()">学習をはじめる</button>
+  </div>
+
+  <!-- メイン学習画面 -->
+  <div id="main-screen">
+    <div class="hanamaru-overlay" id="hanamaru">
+      <svg viewBox="0 0 200 200" width="100%" height="100%">
+        <g stroke="#e53935" stroke-width="8" fill="none" stroke-linecap="round">
+          <path d="M 100 30 C 70 5, 40 40, 65 65" />
+          <path d="M 170 100 C 195 70, 160 40, 135 65" />
+          <path d="M 135 135 C 160 160, 195 130, 170 100" />
+          <path d="M 65 135 C 40 160, 70 195, 100 170" />
+          <path d="M 30 100 C 5 70, 40 40, 65 65" />
+          <circle cx="100" cy="100" r="55" stroke="#e53935" stroke-width="9" />
+          <circle cx="100" cy="100" r="35" stroke="#e53935" stroke-width="7" />
+        </g>
+      </svg>
+    </div>
+
+    <div class="header-status">
+      <div>学習者: <span id="display-username" style="color:#2563eb;">-</span></div>
+      <div>正解数: <span id="score-count" style="color:#16a34a;">0</span> / 47</div>
+    </div>
+
+    <div class="container">
+      <div class="map-container">
+        <h3 style="color:#1e293b;">日本地図から選んでね</h3>
+        <p style="font-size: 13px; color: #64748b; margin: 4px 0 12px 0;">都道府県を直接クリックして選択できます</p>
+        
+        <div class="map-wrapper">
+          <!-- 埋め込みSVG地図 -->
+          <svg id="japan-map-svg" viewBox="0 0 600 500">
+            <!-- 各都道府県ブロック（クリック可能） -->
+            <g id="pref-group">
+              <path class="pref-node" data-name="北海道" d="M 430,40 L 520,30 L 550,90 L 460,110 Z" />
+              <path class="pref-node" data-name="青森県" d="M 440,125 L 480,125 L 480,150 L 440,150 Z" />
+              <path class="pref-node" data-name="岩手県" d="M 460,155 L 490,155 L 490,190 L 460,190 Z" />
+              <path class="pref-node" data-name="宮城県" d="M 460,195 L 490,195 L 490,220 L 460,220 Z" />
+              <path class="pref-node" data-name="秋田県" d="M 430,155 L 455,155 L 455,190 L 430,190 Z" />
+              <path class="pref-node" data-name="山形県" d="M 430,195 L 455,195 L 455,220 L 430,220 Z" />
+              <path class="pref-node" data-name="福島県" d="M 430,225 L 485,225 L 485,250 L 430,250 Z" />
+              <path class="pref-node" data-name="茨城県" d="M 460,255 L 485,255 L 485,285 L 460,285 Z" />
+              <path class="pref-node" data-name="栃木県" d="M 435,255 L 455,255 L 455,280 L 435,280 Z" />
+              <path class="pref-node" data-name="群馬県" d="M 410,255 L 430,255 L 430,280 L 410,280 Z" />
+              <path class="pref-node" data-name="埼玉県" d="M 425,285 L 455,285 L 455,300 L 425,300 Z" />
+              <path class="pref-node" data-name="千葉県" d="M 460,290 L 480,290 L 475,325 L 455,325 Z" />
+              <path class="pref-node" data-name="東京都" d="M 425,305 L 450,305 L 450,315 L 425,315 Z" />
+              <path class="pref-node" data-name="神奈川県" d="M 425,320 L 450,320 L 445,335 L 425,335 Z" />
+              <path class="pref-node" data-name="新潟県" d="M 390,215 L 425,215 L 425,250 L 390,250 Z" />
+              <path class="pref-node" data-name="富山県" d="M 365,235 L 385,235 L 385,260 L 365,260 Z" />
+              <path class="pref-node" data-name="石川県" d="M 350,215 L 365,215 L 365,255 L 350,255 Z" />
+              <path class="pref-node" data-name="福井県" d="M 335,255 L 360,255 L 360,280 L 335,280 Z" />
+              <path class="pref-node" data-name="山梨県" d="M 405,285 L 420,285 L 420,310 L 405,310 Z" />
+              <path class="pref-node" data-name="長野県" d="M 385,265 L 405,265 L 405,310 L 385,310 Z" />
+              <path class="pref-node" data-name="岐阜県" d="M 365,265 L 380,265 L 380,305 L 365,305 Z" />
+              <path class="pref-node" data-name="静岡県" d="M 400,315 L 420,315 L 415,340 L 395,340 Z" />
+              <path class="pref-node" data-name="愛知県" d="M 375,310 L 395,310 L 390,335 L 370,335 Z" />
+              <path class="pref-node" data-name="三重県" d="M 345,320 L 365,320 L 360,355 L 340,355 Z" />
+              <path class="pref-node" data-name="滋賀県" d="M 345,285 L 360,285 L 360,315 L 345,315 Z" />
+              <path class="pref-node" data-name="京都府" d="M 325,280 L 340,280 L 340,310 L 325,310 Z" />
+              <path class="pref-node" data-name="大阪府" d="M 325,315 L 340,315 L 340,340 L 325,340 Z" />
+              <path class="pref-node" data-name="兵庫県" d="M 295,280 L 320,280 L 320,320 L 295,320 Z" />
+              <path class="pref-node" data-name="奈良県" d="M 340,320 L 355,320 L 355,350 L 340,350 Z" />
+              <path class="pref-node" data-name="和歌山県" d="M 320,345 L 345,345 L 340,380 L 315,380 Z" />
+              <path class="pref-node" data-name="鳥取県" d="M 265,280 L 290,280 L 290,300 L 265,300 Z" />
+              <path class="pref-node" data-name="島根県" d="M 225,290 L 260,290 L 260,310 L 225,310 Z" />
+              <path class="pref-node" data-name="岡山県" d="M 265,305 L 290,305 L 290,330 L 265,330 Z" />
+              <path class="pref-node" data-name="広島県" d="M 235,315 L 260,315 L 260,340 L 235,340 Z" />
+              <path class="pref-node" data-name="山口県" d="M 200,315 L 230,315 L 230,345 L 200,345 Z" />
+              <path class="pref-node" data-name="徳島県" d="M 270,370 L 295,370 L 295,390 L 270,390 Z" />
+              <path class="pref-node" data-name="香川県" d="M 265,350 L 290,350 L 290,365 L 265,365 Z" />
+              <path class="pref-node" data-name="愛媛県" d="M 230,360 L 260,360 L 255,385 L 225,385 Z" />
+              <path class="pref-node" data-name="高知県" d="M 230,390 L 285,390 L 280,415 L 225,415 Z" />
+              <path class="pref-node" data-name="福岡県" d="M 160,335 L 185,335 L 185,360 L 160,360 Z" />
+              <path class="pref-node" data-name="佐賀県" d="M 135,345 L 155,345 L 155,365 L 135,365 Z" />
+              <path class="pref-node" data-name="長崎県" d="M 110,350 L 130,350 L 130,380 L 110,380 Z" />
+              <path class="pref-node" data-name="熊本県" d="M 145,370 L 170,370 L 170,405 L 145,405 Z" />
+              <path class="pref-node" data-name="大分県" d="M 175,365 L 195,365 L 195,395 L 175,395 Z" />
+              <path class="pref-node" data-name="宮崎県" d="M 170,400 L 195,400 L 190,435 L 165,435 Z" />
+              <path class="pref-node" data-name="鹿児島県" d="M 135,410 L 160,410 L 155,450 L 130,450 Z" />
+              <path class="pref-node" data-name="沖縄県" d="M 50,440 L 90,440 L 90,465 L 50,465 Z" />
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="input-panel">
+        <div class="target-title" id="target-title">地図から県を選んでください</div>
+        
+        <canvas id="paint-canvas" width="300" height="240"></canvas>
+        
+        <div class="canvas-controls">
+          <button class="btn btn-clear" onclick="clearCanvas()">けす</button>
+          <button class="btn btn-submit" onclick="checkAnswer()">こたえあわせ</button>
+        </div>
+
+        <div id="result-message"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let userName = "";
+    let selectedPref = null;
+    let score = 0;
+    const correctMap = new Set();
+
+    const canvas = document.getElementById('paint-canvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let hasDrawn = false;
+
+    function startGame() {
+      const input = document.getElementById('username-input').value.trim();
+      if (!input) {
+        alert("名前を入力してください");
+        return;
+      }
+      userName = input;
+      document.getElementById('display-username').textContent = userName;
+      document.getElementById('user-init-screen').style.display = 'none';
+      document.getElementById('main-screen').style.display = 'block';
+
+      initCanvas();
+      initMapEvents();
+    }
+
+    function initMapEvents() {
+      const nodes = document.querySelectorAll('.pref-node');
+      nodes.forEach(node => {
+        node.addEventListener('click', (e) => {
+          const prefName = e.target.getAttribute('data-name');
+          selectPrefecture(prefName);
+        });
+      });
+    }
+
+    function selectPrefecture(prefName) {
+      selectedPref = prefName;
+
+      // 見た目の更新
+      document.querySelectorAll('.pref-node').forEach(node => {
+        if (node.getAttribute('data-name') === prefName) {
+          node.classList.add('selected');
+        } else {
+          node.classList.remove('selected');
+        }
+      });
+
+      document.getElementById('target-title').innerHTML = `選択した場所の<br><span style="color:#2563eb;">都道府県名を書こう！</span>`;
+      document.getElementById('result-message').textContent = '';
+      clearCanvas();
+    }
+
+    function initCanvas() {
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#1e293b';
+
+      const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      };
+
+      const startDrawing = (e) => {
+        if (!selectedPref) return;
+        isDrawing = true;
+        hasDrawn = true;
+        const pos = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+      };
+
+      const draw = (e) => {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const pos = getPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+      };
+
+      const stopDrawing = () => { isDrawing = false; };
+
+      canvas.addEventListener('mousedown', startDrawing);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDrawing);
+      canvas.addEventListener('mouseleave', stopDrawing);
+
+      canvas.addEventListener('touchstart', startDrawing);
+      canvas.addEventListener('touchmove', draw);
+      canvas.addEventListener('touchend', stopDrawing);
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasDrawn = false;
+    }
+
+    function checkAnswer() {
+      const msg = document.getElementById('result-message');
+
+      if (!selectedPref) {
+        msg.style.color = '#ef4444';
+        msg.textContent = '先に地図から選んでね！';
+        return;
+      }
+
+      if (!hasDrawn) {
+        msg.style.color = '#ef4444';
+        msg.textContent = '手書き枠に文字を書いてね！';
+        return;
+      }
+
+      const isCorrect = confirm(`正解を表示します：\n\n正解は【 ${selectedPref} 】です！\n\n正しく書けていましたか？\n[OK] 正解！   [キャンセル] もう一度`);
+
+      if (isCorrect) {
+        msg.style.color = '#16a34a';
+        msg.textContent = `正解！ (${selectedPref})`;
+
+        const hanamaru = document.getElementById('hanamaru');
+        hanamaru.classList.add('show');
+        setTimeout(() => hanamaru.classList.remove('show'), 1200);
+
+        if (!correctMap.has(selectedPref)) {
+          correctMap.add(selectedPref);
+          score = correctMap.size;
+          document.getElementById('score-count').textContent = score;
+
+          // 正解した都道府県の色を変更
+          const node = document.querySelector(`.pref-node[data-name="${selectedPref}"]`);
+          if (node) node.classList.add('correct');
+        }
+
+        if (score === 47) {
+          setTimeout(() => {
+            alert(`🎉 おめでとうございます！ ${userName} さんは全47都道府県をクリアしました！`);
+          }, 500);
+        }
+      } else {
+        msg.style.color = '#ef4444';
+        msg.textContent = 'ざんねん！ もう一度書いてみよう！';
+      }
+    }
+  </script>
+</body>
+</html>

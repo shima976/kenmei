@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>都道府県 手書き学習マスター</title>
+  <title>都道府県 手書き自動判定マスター</title>
   <style>
     * {
       box-sizing: border-box;
@@ -103,7 +103,6 @@
       text-align: center;
     }
 
-    /* 地図のスタイル */
     .map-wrapper {
       position: relative;
       background: #ffffff;
@@ -118,28 +117,46 @@
       max-height: 500px;
     }
 
-    /* SVG内の都道府県パススタイル */
+    /* SVG内の都道府県スタイル */
     .pref-node {
       fill: #e2e8f0;
       stroke: #64748b;
       stroke-width: 1;
       cursor: pointer;
-      transition: fill 0.2s, stroke 0.2s;
+      transition: fill 0.3s, stroke 0.3s;
     }
 
     .pref-node:hover {
       fill: #cbd5e1;
     }
 
+    /* 選択中は最優先でオレンジ色を表示 */
     .pref-node.selected {
       fill: #f59e0b !important;
-      stroke: #b45309;
-      stroke-width: 2;
+      stroke: #b45309 !important;
+      stroke-width: 2 !important;
     }
 
+    /* 正解した県 */
     .pref-node.correct {
-      fill: #4ade80 !important;
+      fill: #4ade80;
       stroke: #15803d;
+    }
+
+    /* 不正解だった県（選択が解除された後も赤色をキープ） */
+    .pref-node.incorrect {
+      fill: #ef4444;
+      stroke: #991b1b;
+    }
+
+    .pref-node.shake {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-3px); }
+      40%, 80% { transform: translateX(3px); }
     }
 
     .input-panel {
@@ -192,11 +209,29 @@
     .btn-submit { background-color: #f97316; color: white; }
     .btn:hover { opacity: 0.9; }
 
-    #result-message {
+    .recognition-box {
       margin-top: 15px;
+      padding: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      width: 100%;
+      text-align: center;
+      font-size: 14px;
+      color: #475569;
+    }
+
+    #recognized-text {
+      font-weight: bold;
+      color: #0f172a;
+      font-size: 16px;
+    }
+
+    #result-message {
+      margin-top: 10px;
       font-weight: bold;
       font-size: 16px;
-      height: 28px;
+      min-height: 28px;
       text-align: center;
     }
 
@@ -217,20 +252,94 @@
       transform: translate(-50%, -50%) scale(1);
       opacity: 0.95;
     }
+
+    /* 最終結果モーダル画面 */
+    .final-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.75);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .final-card {
+      background: #ffffff;
+      padding: 40px 30px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      text-align: center;
+      max-width: 460px;
+      width: 90%;
+      animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .final-card h2 {
+      font-size: 22px;
+      color: #334155;
+      margin-bottom: 10px;
+    }
+
+    .final-score-box {
+      margin: 25px 0;
+      padding: 20px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 2px dashed #cbd5e1;
+    }
+
+    .final-score-text {
+      font-size: 36px;
+      font-weight: 900;
+      color: #2563eb;
+      line-height: 1.2;
+    }
+
+    .final-comment {
+      font-size: 16px;
+      font-weight: bold;
+      color: #475569;
+      margin-top: 10px;
+    }
+
+    .btn-restart {
+      padding: 14px 36px;
+      font-size: 18px;
+      background-color: #16a34a;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    .btn-restart:hover {
+      background-color: #15803d;
+    }
   </style>
 </head>
 <body>
 
-  <!-- 名前入力画面 -->
+  <!-- 1. 名前入力画面 -->
   <div id="user-init-screen">
-    <h2>都道府県 手書き学習</h2>
+    <h2>都道府県 手書き学習マスター</h2>
     <p style="font-size:14px; color:#64748b;">名前を入力してスタート！</p>
     <input type="text" id="username-input" placeholder="例: たろう" autofocus maxlength="10">
     <br>
     <button onclick="startGame()">学習をはじめる</button>
   </div>
 
-  <!-- メイン学習画面 -->
+  <!-- 2. メイン学習画面 -->
   <div id="main-screen">
     <div class="hanamaru-overlay" id="hanamaru">
       <svg viewBox="0 0 200 200" width="100%" height="100%">
@@ -254,12 +363,10 @@
     <div class="container">
       <div class="map-container">
         <h3 style="color:#1e293b;">日本地図から選んでね</h3>
-        <p style="font-size: 13px; color: #64748b; margin: 4px 0 12px 0;">都道府県を直接クリックして選択できます</p>
+        <p style="font-size: 13px; color: #64748b; margin: 4px 0 12px 0;">都道府県をクリックして選択します</p>
         
         <div class="map-wrapper">
-          <!-- 埋め込みSVG地図 -->
           <svg id="japan-map-svg" viewBox="0 0 600 500">
-            <!-- 各都道府県ブロック（クリック可能） -->
             <g id="pref-group">
               <path class="pref-node" data-name="北海道" d="M 430,40 L 520,30 L 550,90 L 460,110 Z" />
               <path class="pref-node" data-name="青森県" d="M 440,125 L 480,125 L 480,150 L 440,150 Z" />
@@ -320,7 +427,12 @@
         
         <div class="canvas-controls">
           <button class="btn btn-clear" onclick="clearCanvas()">けす</button>
-          <button class="btn btn-submit" onclick="checkAnswer()">こたえあわせ</button>
+          <button class="btn btn-submit" id="submit-btn" onclick="checkAnswer()">こたえあわせ</button>
+        </div>
+
+        <div class="recognition-box">
+          手書きの読み取り結果：<br>
+          <span id="recognized-text">-</span>
         </div>
 
         <div id="result-message"></div>
@@ -328,16 +440,31 @@
     </div>
   </div>
 
+  <!-- 3. 全終了時の結果モーダル -->
+  <div class="final-modal-overlay" id="final-modal">
+    <div class="final-card">
+      <h2 id="final-username-title">おつかれさまでした！</h2>
+      <div class="final-score-box">
+        <div class="final-score-text" id="final-score-text">47県中 0県正解！</div>
+        <div class="final-comment" id="final-comment">よくがんばりました！</div>
+      </div>
+      <button class="btn-restart" onclick="location.reload()">もう一度チャレンジ</button>
+    </div>
+  </div>
+
   <script>
     let userName = "";
     let selectedPref = null;
     let score = 0;
+    const TOTAL_PREFECTURES = 47;
     const correctMap = new Set();
+    const answeredMap = new Set();
 
     const canvas = document.getElementById('paint-canvas');
     const ctx = canvas.getContext('2d');
     let isDrawing = false;
-    let hasDrawn = false;
+    let strokeStrokes = [];
+    let currentStroke = [];
 
     function startGame() {
       const input = document.getElementById('username-input').value.trim();
@@ -367,17 +494,21 @@
     function selectPrefecture(prefName) {
       selectedPref = prefName;
 
-      // 見た目の更新
       document.querySelectorAll('.pref-node').forEach(node => {
-        if (node.getAttribute('data-name') === prefName) {
+        const name = node.getAttribute('data-name');
+        
+        // 他の選択状態とシェイクアニメーションを解除
+        node.classList.remove('selected', 'shake');
+
+        // クリックした県を選択状態（オレンジ色）にする
+        if (name === prefName) {
           node.classList.add('selected');
-        } else {
-          node.classList.remove('selected');
         }
       });
 
       document.getElementById('target-title').innerHTML = `選択した場所の<br><span style="color:#2563eb;">都道府県名を書こう！</span>`;
       document.getElementById('result-message').textContent = '';
+      document.getElementById('recognized-text').textContent = '-';
       clearCanvas();
     }
 
@@ -390,30 +521,34 @@
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return {
-          x: clientX - rect.left,
-          y: clientY - rect.top
-        };
+        return [clientX - rect.left, clientY - rect.top];
       };
 
       const startDrawing = (e) => {
         if (!selectedPref) return;
         isDrawing = true;
-        hasDrawn = true;
-        const pos = getPos(e);
+        const [x, y] = getPos(e);
+        currentStroke = [[x], [y]];
         ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
+        ctx.moveTo(x, y);
       };
 
       const draw = (e) => {
         if (!isDrawing) return;
         e.preventDefault();
-        const pos = getPos(e);
-        ctx.lineTo(pos.x, pos.y);
+        const [x, y] = getPos(e);
+        currentStroke[0].push(x);
+        currentStroke[1].push(y);
+        ctx.lineTo(x, y);
         ctx.stroke();
       };
 
-      const stopDrawing = () => { isDrawing = false; };
+      const stopDrawing = () => {
+        if (isDrawing) {
+          isDrawing = false;
+          strokeStrokes.push(currentStroke);
+        }
+      };
 
       canvas.addEventListener('mousedown', startDrawing);
       canvas.addEventListener('mousemove', draw);
@@ -427,11 +562,14 @@
 
     function clearCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      hasDrawn = false;
+      strokeStrokes = [];
+      document.getElementById('recognized-text').textContent = '-';
     }
 
-    function checkAnswer() {
+    async function checkAnswer() {
       const msg = document.getElementById('result-message');
+      const recogTextElem = document.getElementById('recognized-text');
+      const submitBtn = document.getElementById('submit-btn');
 
       if (!selectedPref) {
         msg.style.color = '#ef4444';
@@ -439,41 +577,118 @@
         return;
       }
 
-      if (!hasDrawn) {
+      if (strokeStrokes.length === 0) {
         msg.style.color = '#ef4444';
         msg.textContent = '手書き枠に文字を書いてね！';
         return;
       }
 
-      const isCorrect = confirm(`正解を表示します：\n\n正解は【 ${selectedPref} 】です！\n\n正しく書けていましたか？\n[OK] 正解！   [キャンセル] もう一度`);
+      submitBtn.disabled = true;
+      msg.style.color = '#64748b';
+      msg.textContent = '文字を読み取り中...';
 
-      if (isCorrect) {
-        msg.style.color = '#16a34a';
-        msg.textContent = `正解！ (${selectedPref})`;
+      try {
+        const requestData = {
+          app_version: 0.4,
+          api_level: "537.36",
+          device: "5.0 (Windows)",
+          input_type: 0,
+          options: "enable_pre_space",
+          requests: [{
+            writing_guide: { writing_area_width: 300, writing_area_height: 240 },
+            ink: strokeStrokes,
+            language: "ja"
+          }]
+        };
 
-        const hanamaru = document.getElementById('hanamaru');
-        hanamaru.classList.add('show');
-        setTimeout(() => hanamaru.classList.remove('show'), 1200);
+        const res = await fetch("https://inputtools.google.com/request?itc=ja-t-i0-handwrit&app=autodraw", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestData)
+        });
 
-        if (!correctMap.has(selectedPref)) {
-          correctMap.add(selectedPref);
-          score = correctMap.size;
-          document.getElementById('score-count').textContent = score;
+        const data = await res.json();
 
-          // 正解した都道府県の色を変更
+        if (data[0] === "SUCCESS") {
+          const candidates = data[1][0][1];
+          recogTextElem.textContent = candidates.join(" / ");
+
+          const baseName = selectedPref.replace(/(都|府|県)$/, '');
+          const isCorrect = candidates.some(cand => {
+            return cand.includes(selectedPref) || cand.includes(baseName);
+          });
+
           const node = document.querySelector(`.pref-node[data-name="${selectedPref}"]`);
-          if (node) node.classList.add('correct');
-        }
+          
+          // 回答済みとして記録
+          answeredMap.add(selectedPref);
 
-        if (score === 47) {
-          setTimeout(() => {
-            alert(`🎉 おめでとうございます！ ${userName} さんは全47都道府県をクリアしました！`);
-          }, 500);
+          if (isCorrect) {
+            msg.style.color = '#16a34a';
+            msg.textContent = `⭕ 正解！ (${selectedPref})`;
+
+            const hanamaru = document.getElementById('hanamaru');
+            hanamaru.classList.add('show');
+            setTimeout(() => hanamaru.classList.remove('show'), 1200);
+
+            if (node) {
+              node.classList.remove('selected', 'incorrect', 'shake');
+              node.classList.add('correct');
+            }
+
+            if (!correctMap.has(selectedPref)) {
+              correctMap.add(selectedPref);
+              score = correctMap.size;
+              document.getElementById('score-count').textContent = score;
+            }
+          } else {
+            msg.style.color = '#ef4444';
+            msg.textContent = `❌ 不正解！正解は「${selectedPref}」です`;
+
+            if (node) {
+              // 間違えたので赤クラスを追加し、揺らすアニメーションを適用
+              node.classList.remove('selected', 'shake');
+              void node.offsetWidth; // リフローを発生させてアニメーションを再実行
+              node.classList.add('incorrect', 'shake');
+            }
+          }
+
+          // 全47都道府県の回答が終わったか判定
+          if (answeredMap.size === TOTAL_PREFECTURES) {
+            setTimeout(showFinalResult, 1000);
+          }
+
+        } else {
+          msg.style.color = '#ef4444';
+          msg.textContent = '文字の認識に失敗しました。もう一度書いてみてください。';
         }
-      } else {
+      } catch (err) {
+        console.error(err);
         msg.style.color = '#ef4444';
-        msg.textContent = 'ざんねん！ もう一度書いてみよう！';
+        msg.textContent = '通信エラーが発生しました。';
+      } finally {
+        submitBtn.disabled = false;
       }
+    }
+
+    // 47都道府県すべて回答完了時の結果表示処理
+    function showFinalResult() {
+      document.getElementById('final-username-title').textContent = `${userName} さんの最終結果`;
+      document.getElementById('final-score-text').textContent = `${TOTAL_PREFECTURES}県中 ${score}県正解！`;
+
+      let comment = "";
+      if (score === 47) {
+        comment = "🎉 パーフェクト！47都道府県マスターです！";
+      } else if (score >= 35) {
+        comment = "✨ すごい！あと少しで全問正解！";
+      } else if (score >= 20) {
+        comment = "👍 ナイスチャレンジ！赤色の県を復習してみよう！";
+      } else {
+        comment = "💪 伸びしろバッチリ！もう一度挑戦してみよう！";
+      }
+
+      document.getElementById('final-comment').textContent = comment;
+      document.getElementById('final-modal').style.display = 'flex';
     }
   </script>
 </body>
